@@ -20,13 +20,15 @@ interface ReelItemProps {
   isActive: boolean;
   isMuted: boolean;
   toggleMute: () => void;
+  onBuy: (url: string) => void;
 }
 
 const ReelItem: React.FC<ReelItemProps> = ({ 
   reel, 
   isActive, 
   isMuted, 
-  toggleMute 
+  toggleMute,
+  onBuy
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isPlaying, setIsPlaying] = useState(true);
@@ -38,7 +40,6 @@ const ReelItem: React.FC<ReelItemProps> = ({
     if (isActive && videoRef.current) {
       videoRef.current.currentTime = 0;
       videoRef.current.play().catch(() => {
-        // Autoplay policy might block unmuted playback
         console.log("Autoplay blocked");
         setIsPlaying(false);
       });
@@ -201,7 +202,7 @@ const ReelItem: React.FC<ReelItemProps> = ({
           <Button 
             className="w-full relative overflow-hidden group border-none"
             style={{ background: 'linear-gradient(90deg, #5A4BFF 0%, #33CFFF 100%)' }}
-            onClick={() => window.open(reel.product.externalLink || '#', '_blank')}
+            onClick={() => onBuy(reel.product.externalLink || '#')}
           >
             <div className="flex items-center justify-between w-full">
               <div className="flex items-center gap-2">
@@ -284,6 +285,7 @@ const ReelItem: React.FC<ReelItemProps> = ({
 export const ReelsView: React.FC<ReelsViewProps> = ({ reels, onBack }) => {
   const [isMuted, setIsMuted] = useState(true);
   const [activeIndex, setActiveIndex] = useState(0);
+  const [showRedirectNotice, setShowRedirectNotice] = useState(false);
 
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const container = e.currentTarget;
@@ -291,6 +293,19 @@ export const ReelsView: React.FC<ReelsViewProps> = ({ reels, onBack }) => {
     if (index !== activeIndex) {
       setActiveIndex(index);
     }
+  };
+
+  const handleBuyClick = (url: string) => {
+    setShowRedirectNotice(true);
+    // Mimic the "Instantly open" with a very slight delay for the user to perceive the toast
+    // The prompt says "Instantly open... Show notice". 
+    // We show notice immediately, and open window immediately (or very short delay to avoid popup blocker issues if async)
+    
+    // We open directly to ensure it works on mobile
+    window.open(url, '_blank');
+    
+    // Hide toast after a few seconds
+    setTimeout(() => setShowRedirectNotice(false), 3000);
   };
 
   return (
@@ -302,6 +317,26 @@ export const ReelsView: React.FC<ReelsViewProps> = ({ reels, onBack }) => {
       >
         <ArrowLeft className="w-6 h-6" />
       </button>
+
+      {/* Redirect Notice Toast */}
+      <AnimatePresence>
+        {showRedirectNotice && (
+          <motion.div 
+             initial={{ opacity: 0, y: -20, x: '-50%' }}
+             animate={{ opacity: 1, y: 0, x: '-50%' }}
+             exit={{ opacity: 0 }}
+             className="absolute top-20 left-1/2 z-50 bg-white/90 backdrop-blur-md px-4 py-3 rounded-2xl shadow-xl flex items-center gap-3 w-[90%] max-w-sm"
+          >
+             <div className="p-2 bg-green-100 rounded-full">
+               <ExternalLink className="w-4 h-4 text-green-600" />
+             </div>
+             <div>
+               <p className="text-xs font-bold text-gray-900">Redirecting to Seller Store</p>
+               <p className="text-[10px] text-gray-600">You are buying directly from their website.</p>
+             </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Snap Scroll Container */}
       <div 
@@ -315,6 +350,7 @@ export const ReelsView: React.FC<ReelsViewProps> = ({ reels, onBack }) => {
             isActive={index === activeIndex}
             isMuted={isMuted}
             toggleMute={() => setIsMuted(!isMuted)}
+            onBuy={handleBuyClick}
           />
         ))}
         

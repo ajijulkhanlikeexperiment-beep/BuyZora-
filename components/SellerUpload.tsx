@@ -3,7 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Camera, Upload, X, CheckCircle, Smartphone, 
   Sparkles, AlertCircle, FileVideo, HardDrive, 
-  Tag, DollarSign, AlignLeft, Layers, ArrowRight
+  Tag, DollarSign, AlignLeft, Layers, ArrowRight,
+  Link as LinkIcon, Globe
 } from 'lucide-react';
 import { Button, Input, Card } from './UIComponents';
 import * as GeminiService from '../services/geminiService';
@@ -19,13 +20,15 @@ export const SellerUpload = () => {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [price, setPrice] = useState('');
+  const [productUrl, setProductUrl] = useState('');
   const [tags, setTags] = useState<string[]>([]);
   const [category, setCategory] = useState('Fashion');
 
   // UI State
   const [isOptimizing, setIsOptimizing] = useState(false);
   const [optimizationReason, setOptimizationReason] = useState('');
-  const [publishState, setPublishState] = useState<'IDLE' | 'PUBLISHING' | 'SUCCESS'>('IDLE');
+  const [publishState, setPublishState] = useState<'IDLE' | 'VALIDATING' | 'PUBLISHING' | 'SUCCESS'>('IDLE');
+  const [urlError, setUrlError] = useState('');
 
   // Cleanup object URL on unmount
   useEffect(() => {
@@ -63,7 +66,33 @@ export const SellerUpload = () => {
     setIsOptimizing(false);
   };
 
+  const validateUrl = (url: string) => {
+    const regex = /^(https?:\/\/)?([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w \.-]*)*\/?$/;
+    return regex.test(url);
+  };
+
   const handlePublish = async () => {
+    setUrlError('');
+    
+    // 1. Basic Validation
+    if (!validateUrl(productUrl)) {
+      setUrlError('Please enter a valid URL starting with http:// or https://');
+      return;
+    }
+
+    setPublishState('VALIDATING');
+
+    // 2. AI Validation
+    // In a real scenario, we might want to prevent publish if this fails, 
+    // but for UX fluidity we often warn or check specifically.
+    const validationResult = await GeminiService.validateProductLink(productUrl);
+    
+    if (!validationResult.isValid && validationResult.reason !== "AI Check Skipped") {
+       setUrlError(`Invalid Product Link: ${validationResult.reason}`);
+       setPublishState('IDLE');
+       return;
+    }
+
     setPublishState('PUBLISHING');
     
     // Simulate network delay for metadata sync
@@ -71,7 +100,13 @@ export const SellerUpload = () => {
     
     console.log("--- PUBLISHING REEL ---");
     console.log("VIDEO: Kept Local/Client-side");
-    console.log("METADATA: Sent to DB", { title, price, category, tags });
+    console.log("METADATA: Sent to DB", { 
+      title, 
+      price, 
+      category, 
+      tags,
+      productUrl // Saved to backend
+    });
     
     setPublishState('SUCCESS');
   };
@@ -83,6 +118,7 @@ export const SellerUpload = () => {
     setTitle('');
     setDescription('');
     setPrice('');
+    setProductUrl('');
     setTags([]);
     setOptimizationReason('');
   };
@@ -104,8 +140,8 @@ export const SellerUpload = () => {
         
         <h2 className="text-3xl font-bold dark:text-white mb-3">You're Live!</h2>
         <p className="text-gray-500 mb-8 leading-relaxed">
-          Reel metadata synced to ByZora servers.<br/>
-          Video is streaming from <span className="text-[#5A4BFF] font-medium">optimized local storage</span>.
+          Reel metadata and <span className="text-[#5A4BFF]">direct product link</span> synced.<br/>
+          Buyers will be redirected to your store when they click Buy.
         </p>
         
         <div className="w-full space-y-3">
@@ -244,39 +280,65 @@ export const SellerUpload = () => {
             icon={<AlignLeft className="w-4 h-4" />}
           />
 
-          {/* Category Pills */}
-          <div>
-            <label className="text-sm font-medium text-gray-600 dark:text-gray-300 ml-1 mb-2 block">Category</label>
-            <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2 mask-linear-fade">
-              {CATEGORIES.map(cat => (
-                <button
-                  key={cat}
-                  onClick={() => setCategory(cat)}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
-                    category === cat 
-                      ? 'bg-[#111118] dark:bg-white text-white dark:text-black shadow-lg' 
-                      : 'bg-white dark:bg-[#1E1E24] text-gray-500 border border-gray-100 dark:border-white/5'
-                  }`}
-                >
-                  {cat}
-                </button>
-              ))}
-            </div>
+          {/* Product URL Input */}
+          <div className="bg-blue-50 dark:bg-blue-900/10 p-3 rounded-2xl border border-blue-100 dark:border-blue-900/20">
+             <Input 
+               label="Direct Product Link" 
+               placeholder="https://mystore.com/products/item-123" 
+               value={productUrl}
+               onChange={(e) => {
+                 setProductUrl(e.target.value);
+                 if(urlError) setUrlError('');
+               }}
+               icon={<LinkIcon className="w-4 h-4 text-[#5A4BFF]" />}
+             />
+             <div className="flex items-start gap-2 mt-2 px-1">
+                <Globe className="w-3 h-3 text-blue-500 mt-0.5" />
+                <p className="text-[10px] text-blue-600 dark:text-blue-300 leading-tight">
+                  Paste the exact product page link. Buyers will be redirected here immediately.
+                </p>
+             </div>
+             {urlError && (
+               <p className="text-xs text-red-500 font-bold mt-2 px-1 flex items-center gap-1">
+                 <AlertCircle className="w-3 h-3" /> {urlError}
+               </p>
+             )}
           </div>
 
-          <Input 
-            label="Price ($)" 
-            type="number" 
-            placeholder="0.00" 
-            value={price}
-            onChange={(e) => setPrice(e.target.value)}
-            icon={<DollarSign className="w-4 h-4" />}
-          />
+          <div className="grid grid-cols-2 gap-4">
+             <Input 
+              label="Display Price ($)" 
+              type="number" 
+              placeholder="0.00" 
+              value={price}
+              onChange={(e) => setPrice(e.target.value)}
+              icon={<DollarSign className="w-4 h-4" />}
+            />
+            {/* Category Pills */}
+            <div className="overflow-hidden">
+              <label className="text-sm font-medium text-gray-600 dark:text-gray-300 ml-1 mb-2 block">Category</label>
+              <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2">
+                {CATEGORIES.slice(0, 3).map(cat => (
+                  <button
+                    key={cat}
+                    onClick={() => setCategory(cat)}
+                    className={`px-3 py-3 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
+                      category === cat 
+                        ? 'bg-[#111118] dark:bg-white text-white dark:text-black' 
+                        : 'bg-white dark:bg-[#1E1E24] text-gray-500 border border-gray-100 dark:border-white/5'
+                    }`}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
 
           <div className="relative">
             <label className="text-sm font-medium text-gray-600 dark:text-gray-300 ml-1 mb-2 block">Description</label>
             <textarea 
-              className="w-full bg-white dark:bg-[#1E1E24] border border-gray-100 dark:border-white/10 rounded-2xl p-4 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#5A4BFF] focus:outline-none h-32 resize-none shadow-sm text-sm leading-relaxed"
+              className="w-full bg-white dark:bg-[#1E1E24] border border-gray-100 dark:border-white/10 rounded-2xl p-4 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#5A4BFF] focus:outline-none h-24 resize-none shadow-sm text-sm leading-relaxed"
               placeholder="Tell a story about your product..."
               value={description}
               onChange={(e) => setDescription(e.target.value)}
@@ -309,23 +371,16 @@ export const SellerUpload = () => {
           </div>
         </div>
 
-        <div className="p-4 bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/5 rounded-2xl flex gap-3">
-           <AlertCircle className="w-5 h-5 text-gray-400 flex-shrink-0" />
-           <p className="text-xs text-gray-500 leading-relaxed">
-             <strong>No Payment Processing:</strong> ByZora is a discovery tool. Users will be redirected to your external link to purchase.
-           </p>
-        </div>
-
         <Button 
           fullWidth 
           onClick={handlePublish}
-          disabled={!videoFile || !title || !price || publishState === 'PUBLISHING'}
+          disabled={!videoFile || !title || !price || !productUrl || publishState === 'PUBLISHING' || publishState === 'VALIDATING'}
           className="h-14 text-base relative overflow-hidden"
         >
-          {publishState === 'PUBLISHING' ? (
+          {publishState === 'PUBLISHING' || publishState === 'VALIDATING' ? (
              <div className="flex items-center gap-2">
                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-               <span>Syncing Metadata...</span>
+               <span>{publishState === 'VALIDATING' ? 'Verifying Link...' : 'Syncing Metadata...'}</span>
              </div>
           ) : (
              <div className="flex items-center gap-2">

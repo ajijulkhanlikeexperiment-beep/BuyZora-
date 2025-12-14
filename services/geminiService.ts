@@ -112,3 +112,44 @@ export const optimizeReelMetadata = async (title: string, description: string, c
     return null;
   }
 };
+
+export const validateProductLink = async (url: string) => {
+  try {
+    const model = 'gemini-2.5-flash';
+    const prompt = `
+      Analyze this URL: ${url}
+      
+      Task: Determine if this is a valid direct product page for an e-commerce item. 
+      It should NOT be a homepage or a blog post. It must be a page where a user can buy something.
+      
+      Return JSON:
+      {
+        "isValid": boolean,
+        "reason": "Short explanation of why valid or invalid (e.g. 'Looks like a homepage', 'Valid product page')",
+        "platform": "Shopify" | "Amazon" | "Generic" | "Unknown"
+      }
+    `;
+
+    const response = await ai.models.generateContent({
+      model,
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            isValid: { type: Type.BOOLEAN },
+            reason: { type: Type.STRING },
+            platform: { type: Type.STRING }
+          }
+        }
+      }
+    });
+
+    return JSON.parse(response.text || '{}');
+  } catch (error) {
+    console.error("Gemini Link Validation Error:", error);
+    // Fallback: If AI fails, we trust the regex validation done on client side
+    return { isValid: true, reason: "AI Check Skipped", platform: "Unknown" };
+  }
+};
