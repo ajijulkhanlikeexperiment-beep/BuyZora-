@@ -1,0 +1,8 @@
+{
+  "name": "Copy of ByZora",
+  "description": "A modern mobile-first e-commerce app blending social reels with shopping, featuring separate buyer/seller portals and AI tools.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
